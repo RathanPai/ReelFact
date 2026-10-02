@@ -37,6 +37,8 @@ class ClaimVerdict(BaseModel):
     summary_rationale: str = Field(..., description="Quick 1-2 sentence breakdown for the user")
     detailed_analysis: str = Field(..., description="Comprehensive explanation with evidence synthesis")
     key_nuances: Optional[str] = None
+    keyframe_url: Optional[str] = None
+    modality: Optional[str] = None
     sources: List[EvidenceSource] = Field(default_factory=list)
 
 class ReelDossier(BaseModel):

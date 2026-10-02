@@ -211,3 +211,13 @@ async def stream_reel_video(video_id: str):
         if fpath.exists():
             return FileResponse(path=str(fpath), media_type="video/mp4")
     raise HTTPException(status_code=404, detail="Video media file not found")
+
+
+@router.get("/media/frame/{video_id}/{frame_name}")
+async def get_frame_image(video_id: str, frame_name: str):
+    """Serves an extracted video keyframe image."""
+    fpath = settings.FRAMES_DIR / video_id / frame_name
+    if fpath.exists():
+        return FileResponse(path=str(fpath), media_type="image/jpeg")
+    raise HTTPException(status_code=404, detail="Keyframe image not found")
+

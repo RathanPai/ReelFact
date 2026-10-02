@@ -16,6 +16,9 @@ class ModalitySource(str, Enum):
     VISUAL_OCR = "visual_ocr"
     CAPTION = "caption"
     COMBINED = "combined"
+    VISUAL_DEMONSTRATION = "visual_demonstration"
+    CHART_GRAPHIC = "chart_graphic"
+    AUDIO_VISUAL_MISMATCH = "audio_visual_mismatch"
 
 class MultimodalSegment(BaseModel):
     start: float = Field(..., description="Start time in seconds")
@@ -44,6 +47,8 @@ class AtomicClaim(BaseModel):
     category: ClaimCategory = Field(default=ClaimCategory.GENERAL)
     importance_score: float = Field(default=1.0, description="Priority / checkability score (0.0 - 1.0)")
     search_queries: List[str] = Field(default_factory=list, description="Targeted, neutral web search queries")
+    keyframe_timestamp: Optional[float] = Field(default=None, description="Timestamp of most relevant keyframe")
+    keyframe_path: Optional[str] = Field(default=None, description="Relative or absolute path to keyframe image")
 
 class ExtractedClaimsResponse(BaseModel):
     video_id: str

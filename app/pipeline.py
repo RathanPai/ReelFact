@@ -67,27 +67,52 @@ class FactCheckPipeline:
         frames_task = self.preprocessor.extract_keyframes(video_path, video_id, interval_sec=settings.FRAME_SAMPLE_INTERVAL)
         audio_path, frames = await asyncio.gather(audio_task, frames_task)
 
-        # Stage 3: Whisper & OCR Perception
-        await report("Transcribing Speech & Analyzing On-Screen Text", 40, {"status": "perception"})
-        transcribe_task = self.transcriber.transcribe(audio_path)
-        ocr_task = self.ocr_extractor.extract_text_from_frames(frames)
-        audio_segments, ocr_entries = await asyncio.gather(transcribe_task, ocr_task)
+        claims: List[AtomicClaim] = []
+        transcript: MultimodalTranscript
 
-        # Stage 4: Multimodal Timeline Fusion
-        await report("Fusing Multimodal Timeline", 55, {"status": "fusion"})
-        transcript = MultimodalFusion.fuse_timeline(
-            video_id=video_id,
-            title=metadata.get("title", ""),
-            author=metadata.get("author", ""),
-            caption=metadata.get("caption", ""),
-            duration_seconds=duration,
-            audio_segments=audio_segments,
-            ocr_entries=ocr_entries
-        )
+        if settings.PIPELINE_MODE == "native_multimodal":
+            # --- NATIVE MULTIMODAL MODE (Gemma 4 / LM Studio) ---
+            await report("Transcribing Speech Audio", 38, {"status": "perception_audio"})
+            audio_segments = await self.transcriber.transcribe(audio_path)
+            full_speech_text = " ".join([seg["text"] for seg in audio_segments])
 
-        # Stage 5: Atomic Claim Extraction
-        await report("Isolating Verifiable Factual Claims", 65, {"status": "extracting_claims"})
-        claims: List[AtomicClaim] = await self.claim_extractor.extract_claims(transcript)
+            transcript = MultimodalTranscript(
+                video_id=video_id,
+                title=metadata.get("title", ""),
+                author=metadata.get("author", ""),
+                caption=metadata.get("caption", ""),
+                duration_seconds=duration,
+                full_audio_text=full_speech_text
+            )
+
+            # Stage 4: Native Multimodal Claim Extraction
+            await report(f"Extracting Multimodal Claims with {settings.LLM_PROVIDER.upper()} ({len(frames)} frames)", 55, {"status": "multimodal_extraction"})
+            claims = await self.claim_extractor.extract_claims_multimodal(
+                video_id=video_id,
+                frames=frames,
+                audio_transcript=full_speech_text,
+                metadata=metadata
+            )
+        else:
+            # --- LEGACY CASCADED MODE (Whisper + EasyOCR + Fusion) ---
+            await report("Transcribing Speech & Analyzing On-Screen Text (OCR)", 40, {"status": "perception"})
+            transcribe_task = self.transcriber.transcribe(audio_path)
+            ocr_task = self.ocr_extractor.extract_text_from_frames(frames)
+            audio_segments, ocr_entries = await asyncio.gather(transcribe_task, ocr_task)
+
+            await report("Fusing Multimodal Timeline", 55, {"status": "fusion"})
+            transcript = MultimodalFusion.fuse_timeline(
+                video_id=video_id,
+                title=metadata.get("title", ""),
+                author=metadata.get("author", ""),
+                caption=metadata.get("caption", ""),
+                duration_seconds=duration,
+                audio_segments=audio_segments,
+                ocr_entries=ocr_entries
+            )
+
+            await report("Isolating Verifiable Factual Claims", 65, {"status": "extracting_claims"})
+            claims = await self.claim_extractor.extract_claims(transcript)
 
         if not claims:
             # If no checkable factual claims found
@@ -115,7 +140,7 @@ class FactCheckPipeline:
             # Index to ChromaDB
             self.vector_store.add_evidence(video_id=video_id, claim_id=c.id, sources=sources)
 
-        # Stage 7: Fact Verification Reasoning
+        # Stage 7: Fact Verification Reasoning (with Visual Keyframe Grounding)
         await report("Reasoning & Verifying Claims Against Evidence", 88, {"status": "verifying"})
         claim_verdicts: List[ClaimVerdict] = []
         for c in claims:

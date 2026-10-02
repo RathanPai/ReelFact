@@ -21,12 +21,15 @@ class Settings(BaseSettings):
     CHROMA_DIR: Path = BASE_DIR / "data" / "cache" / "chroma"
     DATABASE_URL: str = f"sqlite+aiosqlite:///{BASE_DIR}/data/database.sqlite"
 
+    # Pipeline Mode: "native_multimodal" (Gemma 4 / LM Studio) or "legacy_cascaded" (Whisper + EasyOCR + Fusion)
+    PIPELINE_MODE: str = "native_multimodal"
+
     # LLM Settings
-    LLM_PROVIDER: str = "ollama"  # "ollama", "gemini", "openai", "lmstudio"
+    LLM_PROVIDER: str = "lmstudio"  # "lmstudio", "ollama", "gemini", "openai"
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL: str = "llama3.2:3b"
+    OLLAMA_MODEL: str = "gemma-4:12b"
     LMSTUDIO_BASE_URL: str = "http://localhost:1234/v1"
-    LMSTUDIO_MODEL: str = "local-model"
+    LMSTUDIO_MODEL: str = "gemma-4"
     
     # Cloud LLM keys (optional fallbacks)
     GEMINI_API_KEY: str = ""
@@ -38,6 +41,10 @@ class Settings(BaseSettings):
     MAX_SEARCH_RESULTS_PER_CLAIM: int = 5
     MAX_EVIDENCE_PER_CLAIM: int = 3
     
+    # Multimodal Frame Sampling for Gemma 4
+    MULTIMODAL_MAX_FRAMES: int = 12
+    MULTIMODAL_FRAME_MAX_DIM: int = 1024  # Resize frames to max dimension to optimize LM Studio VRAM/speed
+
     # Ingestion & Perception Models
     WHISPER_MODEL: str = "base"  # "tiny", "base", "small", "medium"
     WHISPER_DEVICE: str = "cuda"  # "cuda" or "cpu"

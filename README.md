@@ -1,19 +1,18 @@
 # ReelFact - Multimodal Instagram Reel Fact-Checker & Conversational RAG
 
-An AI-powered multimodal fact-checking pipeline designed to ingest Instagram Reels (or uploaded video files), extract speech and on-screen text overlays (OCR), isolate checkable atomic claims, retrieve evidence from authoritative peer-reviewed and journalistic sources, deliver fact-checked verdicts with source citations, and enable interactive follow-up QA.
+An AI-powered multimodal fact-checking pipeline designed to ingest Instagram Reels (or uploaded video files), extract speech and visual evidence natively with multimodal models like **Gemma 4**, isolate checkable atomic claims across audio and visual modalities, retrieve evidence from authoritative peer-reviewed and journalistic sources, deliver fact-checked verdicts with source citations and visual grounding, and enable interactive follow-up QA.
 
 ---
 
 ## Key Features
 
-1. **Multimodal Ingestion & Perception**:
-   - Downloads public Instagram Reels via `yt-dlp` or accepts local `.mp4`/`.mov` uploads.
-   - GPU-accelerated speech-to-text with timestamp alignment using `faster-whisper`.
-   - On-screen text overlay detection using `EasyOCR`.
-   - Temporal fusion of audio and visual text streams into a unified multimodal timeline.
+1. **Native Multimodal Perception & Gemma 4 Support**:
+   - Direct end-to-end multimodal perception using **Gemma 4** (via LM Studio, Ollama, or OpenAI-compatible endpoints).
+   - Ingests video keyframes and audio speech simultaneously to capture visual demonstration claims, infographic chart manipulations, and fine-print contradictions.
+   - Dual-mode architecture: `native_multimodal` (Gemma 4 single-pass) or `legacy_cascaded` (Whisper + EasyOCR fallback).
 
 2. **Atomic Claim Extraction**:
-   - Filters out opinions, banter, and hype to isolate verifiable factual statements (health, science, politics, statistics, historical quotes).
+   - Isolates checkable factual assertions across spoken dialogue, visual overlays, infographics, and visual demonstrations.
    - Generates targeted, neutral search queries per claim.
 
 3. **Credible Source Retrieval (RAG)**:
@@ -22,12 +21,13 @@ An AI-powered multimodal fact-checking pipeline designed to ingest Instagram Ree
    - Full article extraction (`Trafilatura`) and vector indexing in **ChromaDB**.
 
 4. **Fact Verification & Scoring**:
-   - Cross-examines each claim against retrieved evidence passages.
+   - Cross-examines each claim and associated video keyframe against retrieved evidence passages.
    - Assigns structured verdicts (`TRUE`, `MOSTLY_TRUE`, `MISLEADING`, `FALSE`, `UNVERIFIABLE`), confidence scores, and plain-English rationales.
    - Synthesizes an overall **Reel Trust Score (0 - 100)** and executive takeaway summary.
 
-5. **Conversational Follow-Up Agent**:
-   - Interactive conversational RAG agent with memory.
+5. **Visually-Grounded Follow-Up Agent**:
+   - Interactive conversational RAG agent with multimodal memory.
+   - Inspects specific video keyframes when users inquire about visual objects, timestamps, or charts.
    - Answers follow-up questions with video timestamp citations and direct evidence links.
 
 6. **High-Aesthetic Web UI**:
@@ -48,10 +48,13 @@ conda activate reel_fact_checker
 ### 2. Configure Environment (`.env`)
 Edit `.env` to configure your preferred LLM provider:
 ```bash
-# Options: "ollama", "gemini", "openai", "lmstudio"
-LLM_PROVIDER=ollama
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=llama3.2:3b
+# Pipeline mode ("native_multimodal" for Gemma 4 / LM Studio or "legacy_cascaded")
+PIPELINE_MODE=native_multimodal
+
+# Options: "lmstudio", "ollama", "gemini", "openai"
+LLM_PROVIDER=lmstudio
+LMSTUDIO_BASE_URL=http://localhost:1234/v1
+LMSTUDIO_MODEL=gemma-4
 
 # Search provider (default is zero-config duckduckgo)
 SEARCH_PROVIDER=duckduckgo
