@@ -463,3 +463,45 @@ function formatMarkdown(text) {
   // Newlines to breaks
   return formatted.replace(/\n/g, '<br>');
 }
+
+// -------------------------------------------------------------
+// PWA Service Worker Registration & Web Share Target Receiver
+// -------------------------------------------------------------
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then((reg) => console.log('ReelFact PWA Service Worker active:', reg.scope))
+      .catch((err) => console.debug('Service worker registration note:', err));
+  });
+}
+
+// Intercept incoming Web Share Target URLs (from native Instagram Share Sheet)
+window.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  const sharedUrl = params.get('url');
+  const sharedText = params.get('text');
+  const sharedTitle = params.get('title');
+
+  const combined = `${sharedUrl || ''} ${sharedText || ''} ${sharedTitle || ''}`.trim();
+  if (!combined) return;
+
+  // Extract valid URL from shared string
+  const urlMatch = combined.match(/(https?:\/\/[^\s]+)/i);
+  const targetUrl = urlMatch ? urlMatch[0] : (sharedUrl || null);
+
+  if (targetUrl && reelUrlInput) {
+    reelUrlInput.value = targetUrl;
+    
+    // Clean up address bar query params without reloading
+    const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+    window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
+
+    // Auto-trigger analysis
+    setTimeout(() => {
+      if (urlForm) {
+        urlForm.dispatchEvent(new Event('submit', { cancelable: true }));
+      }
+    }, 300);
+  }
+});
+
