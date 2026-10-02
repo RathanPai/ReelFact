@@ -16,14 +16,13 @@ logger = logging.getLogger(__name__)
 MULTIMODAL_CLAIM_SYSTEM_PROMPT = """You are an advanced multimodal fact-checking investigator.
 You are given a sequence of timestamped video keyframes and the spoken audio transcript from an Instagram Reel.
 
-Your mission is to inspect the visual scenes (charts, graphs, product packaging, on-screen text overlays, fine-print disclaimers, scientific/medical demonstrations) AND the spoken dialogue to extract ALL verifiable atomic factual claims.
+Your mission is to inspect the visual scenes (charts, graphs, product packaging, on-screen text overlays, fine-print disclaimers, scientific/medical demonstrations) AND the spoken dialogue to extract the TOP 3 TO 5 CORE, HIGHEST-IMPACT verifiable atomic factual claims.
 
 RULES:
-1. EXTRACT ALL CHECKABLE FACTUAL CLAIMS:
-   - Spoken facts, regulatory rules, interest rates, percentages, legal claims, historical statements.
-   - On-screen text, infographics, tables, or charts (e.g. claims made in text overlays or graph axes).
-   - Visual demonstration claims (e.g. "mixing X and Y cleans rust", "this medicine bottle contains ingredient Z", before/after comparisons).
-   - Audio-Visual Mismatches (e.g. presenter claims "100% free" while fine-print on screen reveals hidden costs or exclusions).
+1. FOCUS ON TOP 3 TO 5 HIGH-IMPACT FACTUAL ASSERTIONS:
+   - Extract the primary factual claims that a viewer would care to fact-check (health advice, election numbers, policy rules, statistics, quotes).
+   - Group closely connected sub-statements into a single coherent claim rather than producing 10+ fragmented micro-claims.
+   - Do NOT extract trivial background details or obvious common-sense commentary.
 
 2. IGNORE:
    - Subjective opinions, personal banter, greetings, humor, rhetorical questions, generic hype.
@@ -34,7 +33,8 @@ RULES:
    - Assign the closest keyframe timestamp that visually exhibits the claim.
    - Set modality: "audio", "visual_ocr", "visual_demonstration", "chart_graphic", "audio_visual_mismatch", or "combined".
    - Set category: health_medical, science_tech, finance_economy, politics_policy, history_geography, lifestyle_nutrition, or general.
-   - Generate 2-3 precise search queries with key entities, exact figures, and official institution names.
+   - Assign importance_score (0.0 to 1.0, where 1.0 is the most critical core thesis of the reel).
+   - Generate 1-2 SHORT, PRECISE search queries (e.g. 3-6 keywords with key names, numbers, or terms - avoid full conversational sentences).
 
 Output format must strictly be JSON:
 {

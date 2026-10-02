@@ -19,13 +19,21 @@ class SearchRetriever:
         self.provider = settings.SEARCH_PROVIDER
         self.tavily_api_key = settings.TAVILY_API_KEY
 
-    async def search_duckduckgo(self, query: str, max_results: int = 5) -> List[Dict[str, Any]]:
-        """Search DuckDuckGo asynchronously in executor."""
+    async def search_duckduckgo(self, query: str, max_results: int = 4) -> List[Dict[str, Any]]:
+        """Search DuckDuckGo with automatic news fallback and query cleaning."""
+        import re
         def _ddg_sync():
             results = []
+            clean_q = re.sub(r"[^\w\s\-\.\%]", " ", query).strip()
+            # Trim excessively long queries to first 10 words for search engine friendliness
+            clean_words = clean_q.split()
+            if len(clean_words) > 10:
+                clean_q = " ".join(clean_words[:10])
+
+            # 1. Try DuckDuckGo standard text search
             try:
                 with DDGS() as ddgs:
-                    raw_results = list(ddgs.text(query, max_results=max_results))
+                    raw_results = list(ddgs.text(clean_q, max_results=max_results))
                     for r in raw_results:
                         results.append({
                             "title": r.get("title", ""),
@@ -33,11 +41,27 @@ class SearchRetriever:
                             "snippet": r.get("body", ""),
                         })
             except Exception as e:
-                logger.error(f"DuckDuckGo search error for query '{query}': {e}")
+                logger.debug(f"DuckDuckGo text search error for '{clean_q}': {e}")
+
+            # 2. Fallback to DuckDuckGo News search for current events/political claims
+            if not results:
+                try:
+                    with DDGS() as ddgs:
+                        raw_news = list(ddgs.news(clean_q, max_results=max_results))
+                        for r in raw_news:
+                            results.append({
+                                "title": r.get("title", ""),
+                                "url": r.get("url", ""),
+                                "snippet": r.get("body", ""),
+                            })
+                except Exception as e:
+                    logger.debug(f"DuckDuckGo news search error for '{clean_q}': {e}")
+
             return results
 
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, _ddg_sync)
+
 
     async def search_tavily(self, query: str, max_results: int = 5) -> List[Dict[str, Any]]:
         """Search Tavily if API key is provided."""

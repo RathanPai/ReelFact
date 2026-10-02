@@ -38,12 +38,13 @@ class Settings(BaseSettings):
     # Search & Verification
     SEARCH_PROVIDER: str = "duckduckgo"  # "duckduckgo", "tavily"
     TAVILY_API_KEY: str = ""
-    MAX_SEARCH_RESULTS_PER_CLAIM: int = 5
+    MAX_SEARCH_RESULTS_PER_CLAIM: int = 4
     MAX_EVIDENCE_PER_CLAIM: int = 3
+    MAX_CLAIMS_TO_VERIFY: int = 5  # Top most impactful claims to verify per reel
     
-    # Multimodal Frame Sampling for Gemma 4
-    MULTIMODAL_MAX_FRAMES: int = 12
-    MULTIMODAL_FRAME_MAX_DIM: int = 1024  # Resize frames to max dimension to optimize LM Studio VRAM/speed
+    # Multimodal Frame Sampling for Gemma 4 (Speed & VRAM optimized)
+    MULTIMODAL_MAX_FRAMES: int = 8
+    MULTIMODAL_FRAME_MAX_DIM: int = 512  # 512px gives high OCR/visual fidelity with 3x faster inference
 
     # Ingestion & Perception Models
     WHISPER_MODEL: str = "base"  # "tiny", "base", "small", "medium"

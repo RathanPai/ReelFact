@@ -128,24 +128,60 @@ class FactCheckPipeline:
             await save_reel_dossier(dossier, transcript, url=url)
             return dossier
 
-        # Stage 6: Credible Web Evidence Retrieval (RAG)
-        await report(f"Retrieving Credible Sources for {len(claims)} Claims", 75, {"status": "retrieval", "claims_count": len(claims)})
-        claim_sources_map = {}
-        for c in claims:
-            queries = list(c.search_queries) if c.search_queries else []
-            if c.claim_text and c.claim_text not in queries:
-                queries.append(c.claim_text)
-            sources = await self.search_retriever.gather_evidence_for_queries(queries, max_sources_total=5)
-            claim_sources_map[c.id] = sources
-            # Index to ChromaDB
-            self.vector_store.add_evidence(video_id=video_id, claim_id=c.id, sources=sources)
+        # Sort claims by importance and keep top MAX_CLAIMS_TO_VERIFY
+        claims.sort(key=lambda c: getattr(c, 'importance_score', 1.0), reverse=True)
+        if len(claims) > settings.MAX_CLAIMS_TO_VERIFY:
+            logger.info(f"Limiting {len(claims)} extracted claims to top {settings.MAX_CLAIMS_TO_VERIFY} most impactful claims.")
+            claims = claims[:settings.MAX_CLAIMS_TO_VERIFY]
 
-        # Stage 7: Fact Verification Reasoning (with Visual Keyframe Grounding)
-        await report("Reasoning & Verifying Claims Against Evidence", 88, {"status": "verifying"})
+        # Stage 6: Concurrent Credible Web Evidence Retrieval (RAG)
+        await report(f"Retrieving Credible Sources for {len(claims)} Claims", 75, {"status": "retrieval", "claims_count": len(claims)})
+        
+        async def _retrieve_for_claim(c: AtomicClaim):
+            queries = list(c.search_queries[:2]) if c.search_queries else [c.claim_text[:60]]
+            sources = await self.search_retriever.gather_evidence_for_queries(queries, max_sources_total=settings.MAX_SEARCH_RESULTS_PER_CLAIM)
+            self.vector_store.add_evidence(video_id=video_id, claim_id=c.id, sources=sources)
+            return c.id, sources
+
+        retrieve_tasks = [_retrieve_for_claim(c) for c in claims]
+        retrieval_results = await asyncio.gather(*retrieve_tasks, return_exceptions=True)
+        
+        claim_sources_map = {}
+        for r in retrieval_results:
+            if isinstance(r, tuple) and len(r) == 2:
+                claim_sources_map[r[0]] = r[1]
+
+        # Stage 7: Concurrent Fact Verification Reasoning (with Visual Keyframe Grounding)
+        await report(f"Reasoning & Verifying {len(claims)} Claims Against Evidence", 88, {"status": "verifying"})
+        
+        # Bounded concurrency semaphore to keep GPU/LM Studio responsive
+        sem = asyncio.Semaphore(2)
+        async def _verify_claim_bounded(c: AtomicClaim):
+            async with sem:
+                sources = claim_sources_map.get(c.id, [])
+                return await self.verifier.verify_claim(c, sources)
+
+        verify_tasks = [_verify_claim_bounded(c) for c in claims]
+        verdict_results = await asyncio.gather(*verify_tasks, return_exceptions=True)
+        
         claim_verdicts: List[ClaimVerdict] = []
-        for c in claims:
-            verdict = await self.verifier.verify_claim(c, claim_sources_map.get(c.id, []))
-            claim_verdicts.append(verdict)
+        for idx, res in enumerate(verdict_results):
+            if isinstance(res, ClaimVerdict):
+                claim_verdicts.append(res)
+            else:
+                logger.error(f"Verification error on claim {idx}: {res}")
+                c = claims[idx]
+                claim_verdicts.append(ClaimVerdict(
+                    claim_id=c.id,
+                    claim_text=c.claim_text,
+                    timestamp_start=c.timestamp_start,
+                    timestamp_end=c.timestamp_end,
+                    verdict=Verdict.UNVERIFIABLE,
+                    confidence_score=50,
+                    summary_rationale="Verification timed out or encountered an error.",
+                    detailed_analysis="An automated processing error occurred while reasoning over the evidence.",
+                    sources=claim_sources_map.get(c.id, [])
+                ))
 
         # Stage 8: Reel Dossier Synthesis & Storage
         await report("Synthesizing Final Reel Dossier", 95, {"status": "synthesizing"})
