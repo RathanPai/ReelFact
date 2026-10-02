@@ -23,8 +23,8 @@ try:
 except ImportError:
     Image = None
 
-def encode_image_to_base64(image_input: Union[str, Path, bytes], max_dim: int = 1024) -> str:
-    """Encodes an image path or bytes to a base64 string, resizing if necessary."""
+def encode_image_to_base64(image_input: Union[str, Path, bytes], max_dim: Optional[int] = None) -> str:
+    """Encodes an image path or bytes to a base64 string preserving full native resolution."""
     if isinstance(image_input, (str, Path)):
         p = Path(image_input)
         if not p.exists():
@@ -39,7 +39,8 @@ def encode_image_to_base64(image_input: Union[str, Path, bytes], max_dim: int = 
     else:
         raise ValueError(f"Unsupported image input type: {type(image_input)}")
 
-    if Image is not None:
+    # If max_dim is specified and > 0, resize. Otherwise preserve 100% full original native resolution.
+    if max_dim and max_dim > 0 and Image is not None:
         try:
             with Image.open(io.BytesIO(raw_bytes)) as img:
                 img = img.convert("RGB")
@@ -51,12 +52,14 @@ def encode_image_to_base64(image_input: Union[str, Path, bytes], max_dim: int = 
                     img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
                 
                 buf = io.BytesIO()
-                img.save(buf, format="JPEG", quality=85)
+                img.save(buf, format="JPEG", quality=95)
                 return base64.b64encode(buf.getvalue()).decode("utf-8")
         except Exception as e:
             logger.debug(f"Pillow resize error, falling back to raw base64: {e}")
 
+    # Full native original quality
     return base64.b64encode(raw_bytes).decode("utf-8")
+
 
 def extract_json_from_response(text: str) -> Dict[str, Any]:
     """Extracts JSON dictionary or list from LLM output, handling markdown code blocks, raw JSON, and slightly malformed LLM syntax."""

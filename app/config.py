@@ -42,9 +42,9 @@ class Settings(BaseSettings):
     MAX_EVIDENCE_PER_CLAIM: int = 3
     MAX_CLAIMS_TO_VERIFY: int = 5  # Top most impactful claims to verify per reel
     
-    # Multimodal Frame Sampling for Gemma 4 (Speed & VRAM optimized)
+    # Multimodal Frame Sampling for Gemma 4
     MULTIMODAL_MAX_FRAMES: int = 8
-    MULTIMODAL_FRAME_MAX_DIM: int = 512  # 512px gives high OCR/visual fidelity with 3x faster inference
+    MULTIMODAL_FRAME_MAX_DIM: int = 0  # 0 = Full original native resolution (no downscaling, preserves 100% fine visual detail)
 
     # Ingestion & Perception Models
     WHISPER_MODEL: str = "base"  # "tiny", "base", "small", "medium"
